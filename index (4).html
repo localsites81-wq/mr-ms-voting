@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<!--
+=====================================================================
+ MR & MS PAPAKURATANGA VOTING  -  ONE FILE, NO LOGIN FOR VOTERS
+=====================================================================
+ A website can't count votes from lots of phones without somewhere to
+ store them, so do this ONE-TIME setup (about 10 minutes, free):
+
+ 1. console.firebase.google.com > Create a project (Analytics OFF).
+ 2. Build > Firestore Database > Create database > Production mode.
+ 3. Firestore > Rules tab > delete everything, paste the RULES below, Publish.
+ 4. Project settings (gear) > Your apps > web icon </> > Register app.
+      Copy the config and paste it over the PASTE_HERE line in the script.
+ 5. Run: right-click this file in VS Code > Open with Live Server
+      (or drag the folder onto app.netlify.com/drop for a public link).
+
+ No sign-in, no Authentication setup. Admin password: 321.
+ Each phone/browser can vote once (people can get around it by clearing
+ their browser data, which is fine for a casual vote).
+
+ RULES TO PASTE (step 3):
+-----------------------------------------------------------------
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /config/{d} {
+      allow read, write: if true;
+    }
+    match /votes/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['mr','ms','t'])
+        && request.resource.data.mr is string
+        && request.resource.data.ms is string
+        && (!exists(/databases/$(database)/documents/config/main)
+            || !('endsAt' in get(/databases/$(database)/documents/config/main).data)
+            || get(/databases/$(database)/documents/config/main).data.endsAt == 0
+            || request.time.toMillis() < get(/databases/$(database)/documents/config/main).data.endsAt);
+      allow update, delete: if false;
+    }
+  }
+}
+-----------------------------------------------------------------
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mr & Ms Papakuratanga Voting</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1a1a2e;--mute:#6b6b80;--line:#e4e0d6;--acc:#b8860b;--acc2:#7a1f3d;--ok:#1f7a4d;--bad:#b3261e;--on:#fff;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#12121c;--card:#1c1c2a;--ink:#f1efe8;--mute:#a0a0b4;--line:#2e2e42;--acc:#e0b84a;--acc2:#d56a8c;--ok:#5fd39a;--bad:#ff8a80;--on:#12121c;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Georgia,serif;line-height:1.5}
+button,input{font-family:system-ui,sans-serif}.sans{font-family:system-ui,sans-serif}
+header{position:relative;background:linear-gradient(135deg,#2a1033,#7a1f3d,#b8860b,#7a1f3d,#2a1033);background-size:300% 300%;animation:flow 14s ease infinite;color:#fff;padding:44px 20px 36px;text-align:center}
+@keyframes flow{0%,100%{background-position:0 50%}50%{background-position:100% 50%}}
+header h1{margin:0 0 6px;font-size:clamp(28px,6vw,46px)}header p{margin:0;opacity:.85;font-family:system-ui,sans-serif;font-size:15px}
+.nb{position:absolute;top:12px;right:14px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}.nb.l{right:auto;left:14px}
+.cd{display:inline-flex;gap:10px;margin-top:16px;font-family:system-ui,sans-serif}.cd .u{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:8px 10px;min-width:60px}.cd .u b{display:block;font-size:24px}.cd .u span{font-size:10px;letter-spacing:1px;text-transform:uppercase;opacity:.85}
+.pill{display:inline-block;margin-top:16px;padding:7px 16px;border-radius:99px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);font-family:system-ui,sans-serif;font-size:14px}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 120px}h2{font-size:24px;margin:32px 0 4px;color:var(--acc2)}
+.sub{color:var(--mute);margin:0 0 16px;font-family:system-ui,sans-serif;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;text-align:left;padding:0;color:inherit;transition:.15s}
+.card:hover{transform:translateY(-2px);border-color:var(--acc)}.card.sel{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 35%,transparent)}
+.ph{aspect-ratio:4/5;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:44px;color:#fff;font-weight:700;position:relative}
+.tick{position:absolute;top:8px;right:8px;background:var(--acc);color:var(--on);width:28px;height:28px;border-radius:50%;display:none;align-items:center;justify-content:center}.sel .tick{display:flex}
+.info{padding:10px 12px;font-family:system-ui,sans-serif}.info b{display:block;font-size:15px}.info span{color:var(--mute);font-size:13px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:center}.bar .st{font-size:14px;color:var(--mute)}
+.btn{background:var(--acc);color:var(--on);border:0;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700;cursor:pointer}.btn.g{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}.btn:disabled{opacity:.4}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:16px 0}.center{max-width:440px;margin:60px auto;text-align:center}
+input[type=text],input[type=password],input[type=datetime-local]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:15px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}.cand{display:flex;gap:12px;align-items:center}
+.thumb{width:64px;height:80px;border-radius:8px;background-size:cover;background-position:center;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+.lbl{font-family:system-ui,sans-serif;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.res{font-family:system-ui,sans-serif;font-size:14px;margin:8px 0}.res .t{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:3px}.res .t i{display:block;height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .6s}.lead .t i{background:linear-gradient(90deg,var(--ok),var(--acc))}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--bad);font-family:system-ui,sans-serif;font-weight:700;font-size:13px}.live i{width:9px;height:9px;border-radius:50%;background:var(--bad);animation:p 1.4s infinite}@keyframes p{0%{box-shadow:0 0 0 0 rgba(220,60,50,.6)}100%{box-shadow:0 0 0 10px transparent}}
+.msg{font-family:system-ui,sans-serif;color:var(--bad);font-size:14px;min-height:20px;margin-top:8px}.ok{color:var(--ok)}.tabs{display:flex;gap:8px;margin:12px 0}
+.chart{display:flex;align-items:flex-end;gap:8px;height:240px;padding-top:8px;border-bottom:2px solid var(--line)}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.col b{font-family:system-ui,sans-serif;font-size:14px;margin-bottom:4px;height:22px}
+.col .bv{width:100%;max-width:60px;border-radius:8px 8px 0 0;background:linear-gradient(180deg,var(--acc),var(--acc2));min-height:3px;transition:height .6s}
+.col.lead .bv{background:linear-gradient(180deg,var(--ok),var(--acc))}
+.labs{display:flex;gap:8px;margin-top:6px}
+.labs div{flex:1;min-width:0;text-align:center;font-family:system-ui,sans-serif;font-size:11px;line-height:1.25;word-break:break-word}
+.labs small{display:block;color:var(--mute)}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+</style></head><body>
+<header><button class="nb l" id="liveBtn">Live results</button><button class="nb" id="adminBtn">Admin</button>
+<div style="font-size:34px">👑</div><h1>Mr. &amp; Ms. Papakuratanga</h1><p>You must choose 1 Mr and 1 Ms. One vote per device.</p><div id="cd"></div></header>
+<main id="app"><div class="center sans">Loading…</div></main><div id="barHost"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ====== 1. PASTE YOUR FIREBASE CONFIG HERE (see SETUP.md step 5) ====== */
+const firebaseConfig={apiKey:"PASTE_HERE",authDomain:"PASTE_HERE",projectId:"PASTE_HERE",appId:"PASTE_HERE"};
+/* ====================================================================== */
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+const COLORS=['#c2410c','#15803d','#1d4ed8','#9333ea','#be123c','#0f766e','#a16207','#4338ca'];
+const DEFAULT=[['Filipino Cultural Group','Lazaro Canisi','Myhrinne Iglesia'],['Indian Cultural Group','Gurpartp Thind','Jasmine Kaur'],['Cook Island Culture Club','Romeo Majurey Paora',''],['Samoan Cultural Group','Leavin Lemalu','Druzelle Walter'],['Tongan Cultural Group','Makamaile Tuionetoa','Hiroko Tuumotooa'],['Te Ao Haka','Kahurangi Kerehoma','Summer Turei'],['Japanese','Lachlan Niko','Dhanya Devgan']].map((a,i)=>({id:'g'+(i+1),name:a[0],mr:{name:a[1],photo:''},ms:{name:a[2],photo:''}}));
+let code=null,user=null,groups=DEFAULT,myVote=null,pick={mr:null,ms:null},view='vote',adminOK=false,draft=null,tab='edit',err='';
+let endsAt=0,showLive=true,draftEnds=0,draftLive=true,unsubV=null,votesLive=[],wasClosed=false,cfgSub=null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const col=i=>COLORS[i%COLORS.length],ini=n=>esc((n||'?').trim().slice(0,2).toUpperCase());
+const ps=(p,i)=>p?`background-image:url('${p}')`:`background:linear-gradient(135deg,${col(i)},#222)`;
+const closed=()=>!!endsAt&&Date.now()>=endsAt;
+function applyCfg(d){if(d.groups&&d.groups.length)groups=d.groups;endsAt=d.endsAt||0;showLive=d.showLive!==false}
+
+const vid=(()=>{try{let v=localStorage.getItem('vid');if(!v){v=(crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random().toString(36).slice(2));localStorage.setItem('vid',v)}return v}catch(e){return Date.now()+Math.random().toString(36).slice(2)}})();
+user=true;
+db.doc('config/main').onSnapshot(s=>{if(s.exists)applyCfg(s.data());if(view==='vote')render()},()=>{});
+db.doc('votes/'+vid).get().then(v=>{if(v.exists)myVote=v.data();render()}).catch(()=>render());
+render();
+$('#adminBtn').onclick=()=>{view=view==='admin'?'vote':'admin';render()};
+$('#liveBtn').onclick=()=>{view=view==='live'?'vote':'live';render()};
+
+function render(){
+  const app=$('#app'),bar=$('#barHost');bar.innerHTML='';
+  $('#adminBtn').textContent=view==='admin'?'← Back to voting':'Admin';
+  $('#liveBtn').textContent=view==='live'?'← Back to voting':'Live results';
+  if(view!=='live'&&unsubV){unsubV();unsubV=null}
+  if(!user){app.innerHTML='<div class="center sans">Connecting…<div class="msg">'+esc(err)+'</div></div>';return}
+  if(view==='admin')return renderAdmin();
+  if(view==='live')return renderLive();
+  const g=id=>groups.find(x=>x.id===id);
+  if(myVote){app.innerHTML=`<div class="center"><div class="panel"><div style="font-size:48px">✅</div><h2 style="margin-top:0">Thank you for voting!</h2><p class="sub">Your ballot is recorded. Each person can only vote once.</p><p class="sans"><b>Mr:</b> ${esc(g(myVote.mr)?.name||'—')}<br><b>Ms:</b> ${esc(g(myVote.ms)?.name||'—')}</p><button class="btn" onclick="view='live';render()">See live results</button></div></div>`;return}
+  if(closed()){app.innerHTML=`<div class="center"><div class="panel"><div style="font-size:48px">🔒</div><h2 style="margin-top:0">Voting has closed</h2><button class="btn" onclick="view='live';render()">View results</button></div></div>`;return}
+  const sec=(k,t)=>`<h2>${t}</h2><p class="sub">Choose exactly one ${k==='mr'?'male (Mr)':'female (Ms)'} candidate.</p><div class="grid">${groups.map((g,i)=>!g[k].name?'':`<button class="card ${pick[k]===g.id?'sel':''}" data-k="${k}" data-id="${esc(g.id)}"><div class="ph" style="${ps(g[k].photo,i)}">${g[k].photo?'':ini(g.name)}<span class="tick">✓</span></div><div class="info"><b>${esc(g[k].name)}</b><span>${esc(g.name)}</span></div></button>`).join('')}</div>`;
+  app.innerHTML=sec('mr','Mr Papakuratanga')+sec('ms','Ms Papakuratanga')+`<div class="msg" id="msg">${esc(err)}</div>`;
+  app.querySelectorAll('.card').forEach(c=>c.onclick=()=>{pick[c.dataset.k]=c.dataset.id;app.querySelectorAll(`.card[data-k="${c.dataset.k}"]`).forEach(x=>x.classList.toggle('sel',x===c));upd()});
+  bar.innerHTML=`<div class="bar"><span class="st" id="st"></span><button class="btn" id="sub">Submit vote</button></div>`;$('#sub').onclick=submit;upd();
+}
+function upd(){const st=$('#st');if(!st)return;const n=(pick.mr?1:0)+(pick.ms?1:0);st.textContent=n===2?'Ready to submit':(!pick.mr&&!pick.ms?'Choose 1 Mr and 1 Ms':!pick.mr?'Still need: 1 Mr':'Still need: 1 Ms');$('#sub').disabled=n<2}
+async function submit(){
+  if(!pick.mr||!pick.ms||closed())return;
+  const sb=$('#sub');sb.disabled=true;sb.textContent='Submitting…';
+  try{const v={mr:pick.mr,ms:pick.ms,t:Date.now()};await db.doc('votes/'+vid).set(v);myVote=v;err=''}
+  catch(e){try{const x=await db.doc('votes/'+vid).get();if(x.exists){myVote=x.data();render();return}}catch(_){}
+    err='Vote could not be saved. Voting may have closed.';sb.textContent='Submit vote';sb.disabled=false;$('#msg').textContent=err;return}
+  render();scrollTo(0,0);
+}
+function renderLive(){
+  const app=$('#app');
+  if(!(showLive||closed()||adminOK)){app.innerHTML='<div class="center"><div class="panel"><div style="font-size:48px">🔒</div><h2 style="margin-top:0">Results are hidden</h2><p class="sub">They will be revealed when voting closes.</p></div></div>';return}
+  app.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px"><h2 style="margin:0">${closed()?'Final results':'Live results'}</h2>${closed()?'':'<span class="live"><i></i>LIVE</span>'}</div><p class="sans" id="tot"></p><div id="lv"></div>`;
+  if(unsubV)unsubV();
+  unsubV=db.collection('votes').onSnapshot(s=>{votesLive=s.docs.map(d=>d.data());drawLive()},()=>{$('#lv').innerHTML='<div class="msg">Could not load results.</div>'});
+}
+function drawLive(){
+  const lv=$('#lv');if(!lv)return;const vs=votesLive;$('#tot').innerHTML=`<b>${vs.length}</b> ${vs.length===1?'vote':'votes'} cast`;
+  const blk=(t,k)=>{const r=groups.filter(g=>g[k].name).map(g=>({n:g[k].name,g:g.name,c:vs.filter(v=>v[k]===g.id).length})).sort((a,b)=>b.c-a.c);const mx=Math.max(1,...r.map(x=>x.c));
+    return `<div class="panel"><div class="lbl">${t}</div><div class="chart">${r.map((x,i)=>{const L=i===0&&x.c>0;return `<div class="col ${L?'lead':''}"><b>${L?'👑 ':''}${x.c}</b><div class="bv" style="height:calc((100% - 26px)*${x.c/mx})"></div></div>`}).join('')}</div><div class="labs">${r.map(x=>`<div>${esc(x.n)}<small>${esc(x.g)}</small></div>`).join('')}</div></div>`};
+  lv.innerHTML=blk('Mr Papakuratanga','mr')+blk('Ms Papakuratanga','ms');
+}
+/* ---------- Admin ---------- */
+function renderAdmin(){
+  const app=$('#app');
+  if(!adminOK){app.innerHTML=`<div class="center"><div class="panel"><h2 style="margin-top:0">Admin login</h2><input type="password" id="pw" placeholder="Password"><div class="msg" id="pwm"></div><button class="btn" id="pwb" style="width:100%">Log in</button></div></div>`;
+    const go=()=>{if($('#pw').value==='321'){adminOK=true;draft=JSON.parse(JSON.stringify(groups));draftEnds=endsAt;draftLive=showLive;renderAdmin()}else $('#pwm').textContent='Wrong password.'};
+    $('#pwb').onclick=go;$('#pw').onkeydown=e=>{if(e.key==='Enter')go()};$('#pw').focus();return}
+  app.innerHTML=`<h2>Admin panel</h2><div class="tabs"><button class="btn ${tab==='edit'?'':'g'}" data-t="edit">Edit groups</button><button class="btn ${tab==='res'?'':'g'}" data-t="res">Results</button><button class="btn g" onclick="adminOK=false;draft=null;view='vote';render()">Log out</button></div><div id="adm"></div>`;
+  app.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;renderAdmin()});
+  if(tab==='edit')editTab();else{view='admin';$('#adm').innerHTML='<div id="tot"></div><div id="lv"></div>';db.collection('votes').get().then(s=>{votesLive=s.docs.map(d=>d.data());drawLive()})}
+}
+const toLocal=ms=>ms?new Date(ms-new Date(ms).getTimezoneOffset()*60000).toISOString().slice(0,16):'';
+function editTab(){
+  const el=$('#adm');
+  const cand=(g,i,k)=>`<div><div class="lbl">${k==='mr'?'Mr (male)':'Ms (female)'} candidate</div><div class="cand"><div class="thumb" style="${ps(g[k].photo,i)}">${g[k].photo?'':ini(g.name)}</div><div style="flex:1;min-width:0"><input type="text" data-i="${i}" data-k="${k}" placeholder="Candidate name" value="${esc(g[k].name)}"><button class="btn g up" data-i="${i}" data-k="${k}" style="margin-top:6px;padding:6px 12px;font-size:13px">Upload photo</button></div></div></div>`;
+  el.innerHTML=`<div class="panel"><div class="lbl">Voting deadline</div><input type="datetime-local" id="dl" value="${toLocal(draftEnds)}" style="width:auto"><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn g qk" data-h="1">+1 hour</button><button class="btn g qk" data-h="24">+1 day</button><button class="btn g qk" data-h="0">No deadline</button></div><label class="sans" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="sl" ${draftLive?'checked':''}> Show live results to everyone</label></div>`+
+  draft.map((g,i)=>`<div class="panel"><div style="display:flex;gap:8px"><input type="text" data-gn="${i}" value="${esc(g.name)}" style="font-weight:700"><button class="btn g del" data-i="${i}">Remove</button></div><div class="row">${cand(g,i,'mr')}${cand(g,i,'ms')}</div></div>`).join('')+
+  `<button class="btn g" id="add">+ Add group</button> <button class="btn" id="save">Save changes</button><div class="msg" id="sm"></div>`;
+  el.querySelectorAll('[data-gn]').forEach(x=>x.oninput=()=>draft[x.dataset.gn].name=x.value);
+  el.querySelectorAll('input[data-k]').forEach(x=>x.oninput=()=>draft[x.dataset.i][x.dataset.k].name=x.value);
+  el.querySelectorAll('.del').forEach(b=>b.onclick=()=>{if(confirm('Remove this group?')){draft.splice(b.dataset.i,1);editTab()}});
+  el.querySelectorAll('.up').forEach(b=>b.onclick=()=>pickFile(b.dataset.i,b.dataset.k,b));
+  $('#dl').onchange=e=>draftEnds=e.target.value?new Date(e.target.value).getTime():0;
+  el.querySelectorAll('.qk').forEach(b=>b.onclick=()=>{const h=+b.dataset.h;draftEnds=h?Date.now()+h*3600000:0;editTab()});
+  $('#sl').onchange=e=>draftLive=e.target.checked;
+  $('#add').onclick=()=>{draft.push({id:'g'+Date.now(),name:'New group',mr:{name:'',photo:''},ms:{name:'',photo:''}});editTab()};
+  $('#save').onclick=async()=>{const m=$('#sm');m.className='msg';m.textContent='Saving…';
+    try{await db.doc('config/main').set({groups:draft,endsAt:draftEnds,showLive:draftLive});groups=JSON.parse(JSON.stringify(draft));endsAt=draftEnds;showLive=draftLive;m.className='msg ok';m.textContent='Saved ✓'}
+    catch(e){m.textContent='Could not save. Check the Firestore rules are published.'}};
+}
+function pickFile(i,k,btn){
+  const f=document.createElement('input');f.type='file';f.accept='image/*';
+  f.onchange=()=>{if(!f.files[0])return;btn.textContent='Processing…';const img=new Image();
+    img.onload=()=>{const W=320,H=400,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+      const s=Math.max(W/img.width,H/img.height),w=img.width*s,h=img.height*s;x.drawImage(img,(W-w)/2,(H-h)/2,w,h);
+      draft[i][k].photo=c.toDataURL('image/jpeg',.72);editTab()};
+    img.src=URL.createObjectURL(f.files[0])};
+  f.click();
+}
+function tick(){
+  const c=$('#cd');
+  if(!endsAt)c.innerHTML='<span class="pill">Voting is open</span>';
+  else{const ms=endsAt-Date.now();
+    if(ms<=0)c.innerHTML='<span class="pill">🔒 Voting has closed</span>';
+    else{const s=Math.floor(ms/1000),u=(n,l)=>`<div class="u"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;
+      c.innerHTML=`<div class="cd">${u(Math.floor(s/86400),'days')}${u(Math.floor(s%86400/3600),'hrs')}${u(Math.floor(s%3600/60),'min')}${u(s%60,'sec')}</div>`}}
+  const cl=closed();if(cl!==wasClosed){wasClosed=cl;if(user&&(view==='vote'||view==='live'))render()}
+}
+tick();setInterval(tick,1000);
+</script></body></html>
